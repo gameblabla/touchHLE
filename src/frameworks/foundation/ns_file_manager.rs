@@ -13,6 +13,7 @@ use crate::objc::{
     autorelease, id, msg, msg_class, nil, objc_classes, release, ClassExports, HostObject,
 };
 use crate::Environment;
+use std::fs;
 
 type NSSearchPathDirectory = NSUInteger;
 const NSApplicationDirectory: NSSearchPathDirectory = 1;
@@ -140,6 +141,12 @@ pub const CLASSES: ClassExports = objc_classes! {
             false
         }
     }
+}
+
+- (bool)copyItemAtPath:(id)path // NSString*
+				   toPath:(id)dstPath
+                   error:(MutPtr<id>)error { // NSError**
+	true
 }
 
 - (id)enumeratorAtPath:(id)path { // NSString*
