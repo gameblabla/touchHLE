@@ -53,6 +53,17 @@ fn CFStringConvertNSStringEncodingToEncoding(
     }
 }
 
+fn CFStringGetCString(
+    env: &mut Environment,
+    buffer: CFAllocatorRef,
+    bufferSize: i32,
+    encoding: CFStringEncoding,
+) -> bool {
+	true
+}
+
+
+
 fn CFStringCreateWithCString(
     env: &mut Environment,
     allocator: CFAllocatorRef,
@@ -92,6 +103,7 @@ pub const FUNCTIONS: FunctionExports = &[
     export_c_func!(CFStringConvertEncodingToNSStringEncoding(_)),
     export_c_func!(CFStringConvertNSStringEncodingToEncoding(_)),
     export_c_func!(CFStringCreateWithCString(_, _, _)),
+    export_c_func!(CFStringGetCString(_, _, _)),
     export_c_func!(CFStringCreateWithFormat(_, _, _, _)),
     export_c_func!(CFStringCreateWithFormatAndArguments(_, _, _, _)),
 ];
