@@ -57,6 +57,10 @@ pub const CLASSES: ClassExports = objc_classes! {
     this
 }
 
+- (())endIgnoringInteractionEvents {
+}
+
+
 // This is a singleton, it shouldn't be deallocated.
 - (id)retain { this }
 - (id)autorelease { this }
