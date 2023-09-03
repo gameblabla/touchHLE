@@ -14,7 +14,9 @@ use crate::objc::{
 enum NSNumberHostObject {
     Bool(bool),
     UnsignedLongLong(u64),
+    Integer(i32),
     LongLong(i64),
+    Float(f32),
     Double(f64),
 }
 impl HostObject for NSNumberHostObject {}
@@ -50,11 +52,27 @@ pub const CLASSES: ClassExports = objc_classes! {
     autorelease(env, new)
 }
 
++ (id)numberWithFloat:(f32)value {
+    // TODO: for greater efficiency we could return a static-lifetime value
+
+    let new: id = msg![env; this alloc];
+    let new: id = msg![env; new initWithFloat:value];
+    autorelease(env, new)
+}
+
 + (id)numberWithDouble:(f64)value {
     // TODO: for greater efficiency we could return a static-lifetime value
 
     let new: id = msg![env; this alloc];
     let new: id = msg![env; new initWithDouble:value];
+    autorelease(env, new)
+}
+
++ (id)numberWithInteger:(i32)value {
+    // TODO: for greater efficiency we could return a static-lifetime value
+
+    let new: id = msg![env; this alloc];
+    let new: id = msg![env; new initWithInteger:value];
     autorelease(env, new)
 }
 
@@ -78,6 +96,16 @@ pub const CLASSES: ClassExports = objc_classes! {
 
 - (id)initWithBool:(bool)value {
     *env.objc.borrow_mut(this) = NSNumberHostObject::Bool(value);
+    this
+}
+
+- (id)initWithFloat:(f32)value {
+    *env.objc.borrow_mut(this) = NSNumberHostObject::Float(value);
+    this
+}
+
+- (id)initWithInteger:(i32)value {
+    *env.objc.borrow_mut(this) = NSNumberHostObject::Integer(value);
     this
 }
 

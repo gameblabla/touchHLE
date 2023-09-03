@@ -102,6 +102,7 @@ pub const CLASSES: ClassExports = objc_classes! {
     msg_class![env; _touchHLE_NSDictionary allocWithZone:zone]
 }
 
+
 + (id)dictionary {
     let new_dict: id = msg![env; this alloc];
     let new_dict: id = msg![env; new_dict init];
@@ -135,6 +136,7 @@ pub const CLASSES: ClassExports = objc_classes! {
 - (id)init {
     todo!("TODO: Implement [dictionary init] for custom subclasses")
 }
+
 
 // These probably comes from some category related to plists.
 - (id)initWithContentsOfFile:(id)path { // NSString*
@@ -203,6 +205,22 @@ pub const CLASSES: ClassExports = objc_classes! {
 - (id)init {
     *env.objc.borrow_mut(this) = <DictionaryHostObject as Default>::default();
     this
+}
+
+- (id)registerDefaults:(id)url {
+	this
+}
+
+- (id)dataForKey:(id)url {
+	this
+}
+
+- (id)floatForKey:(id)url {
+	this
+}
+
+- (id)boolForKey:(id)url {
+	this
 }
 
 // TODO: enumeration, more init methods, etc

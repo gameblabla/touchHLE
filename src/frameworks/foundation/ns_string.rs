@@ -224,7 +224,13 @@ pub fn with_format(env: &mut Environment, format: id, args: VaList) -> String {
         args,
     );
     // TODO: what if it's not valid UTF-8?
-    String::from_utf8(res).unwrap()
+    match String::from_utf8(res) {
+        Ok(result_string) => result_string, // Return the valid String
+        Err(_) => {
+            // Handle the case where it's not valid UTF-8 by returning an empty string
+            String::new()
+        }
+    }
 }
 
 fn from_rust_ordering(ordering: std::cmp::Ordering) -> NSComparisonResult {
