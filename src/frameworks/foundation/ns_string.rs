@@ -800,6 +800,11 @@ pub const CLASSES: ClassExports = objc_classes! {
     this
 }
 
+- (bool)hasPrefix:(id)format // NSString* 
+{
+    true
+}
+
 - (id)initWithBytes:(ConstPtr<u8>)bytes
              length:(NSUInteger)len
            encoding:(NSStringEncoding)encoding {
