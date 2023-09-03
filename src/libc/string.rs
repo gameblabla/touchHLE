@@ -123,6 +123,12 @@ fn strcmp(env: &mut Environment, a: ConstPtr<u8>, b: ConstPtr<u8>) -> i32 {
 fn strncmp(env: &mut Environment, a: ConstPtr<u8>, b: ConstPtr<u8>, n: GuestUSize) -> i32 {
     GenericChar::<u8>::strncmp(env, a, b, n)
 }
+
+fn strcasecmp(env: &mut Environment, a: ConstPtr<u8>, b: ConstPtr<u8>) -> i32 {
+	strcasecmp(env, a, b)
+}
+
+
 fn strncat(
     env: &mut Environment,
     s1: ConstPtr<u8>,
@@ -157,6 +163,7 @@ pub const FUNCTIONS: FunctionExports = &[
     export_c_func!(strdup(_)),
     export_c_func!(strcmp(_, _)),
     export_c_func!(strncmp(_, _, _)),
+    export_c_func!(strcasecmp(_, _)),
     export_c_func!(strncat(_, _, _)),
     export_c_func!(strstr(_, _)),
     export_c_func!(strchr(_, _)),
