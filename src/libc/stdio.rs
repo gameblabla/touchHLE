@@ -239,6 +239,23 @@ fn remove(env: &mut Environment, path: ConstPtr<u8>) -> i32 {
     }
 }
 
+// Stub for uname function
+#[repr(C)]
+struct utsname {
+    sysname: [u8; 65],
+    nodename: [u8; 65],
+    release: [u8; 65],
+    version: [u8; 65],
+    machine: [u8; 65],
+}
+
+fn uname(_env: &mut Environment, _utsname: MutPtr<utsname>) -> i32 {
+    // You can leave this function empty since it's a stub.
+    // In a real implementation, you would populate the utsname struct with relevant information.
+    0 // Return a success status code (you can modify this as needed)
+}
+
+
 // POSIX-specific functions
 
 fn fileno(env: &mut Environment, file_ptr: MutPtr<FILE>) -> posix_io::FileDescriptor {
@@ -264,4 +281,6 @@ pub const FUNCTIONS: FunctionExports = &[
     export_c_func!(remove(_)),
     // POSIX-specific functions
     export_c_func!(fileno(_)),
+    // Add uname function stub
+    export_c_func!(uname(_)),
 ];
