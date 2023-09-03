@@ -17,6 +17,7 @@ pub mod qsort;
 pub struct State {
     rand: u32,
     random: u32,
+    arc4random: u32,
     env: HashMap<Vec<u8>, MutPtr<u8>>,
 }
 
@@ -41,7 +42,9 @@ fn realloc(env: &mut Environment, ptr: MutVoidPtr, size: GuestUSize) -> MutVoidP
 }
 
 fn free(env: &mut Environment, ptr: MutVoidPtr) {
-    env.mem.free(ptr);
+    if !Ptr::is_null(ptr) {
+        env.mem.free(ptr);
+    }
 }
 
 fn atexit(
@@ -153,6 +156,11 @@ fn random(env: &mut Environment) -> i32 {
     (env.libc_state.stdlib.random as i32) & RAND_MAX
 }
 
+fn arc4random(env: &mut Environment) -> u32 {
+    env.libc_state.stdlib.arc4random = prng(env.libc_state.stdlib.arc4random);
+    env.libc_state.stdlib.arc4random
+}
+
 fn getenv(env: &mut Environment, name: ConstPtr<u8>) -> MutPtr<u8> {
     let name_cstr = env.mem.cstr_at(name);
     // TODO: Provide all the system environment variables an app might expect to
@@ -245,6 +253,7 @@ pub const FUNCTIONS: FunctionExports = &[
     export_c_func!(rand()),
     export_c_func!(srandom(_)),
     export_c_func!(random()),
+    export_c_func!(arc4random()),
     export_c_func!(getenv(_)),
     export_c_func!(setenv(_, _, _)),
     export_c_func!(exit(_)),

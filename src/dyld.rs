@@ -300,9 +300,28 @@ impl Dyld {
                 objc.link_class(name, /* is_metaclass: */ false, mem)
             } else if let Some(name) = name.strip_prefix("_OBJC_METACLASS_$_") {
                 objc.link_class(name, /* is_metaclass: */ true, mem)
-            } else if name == "___CFConstantStringClassReference" {
+            } else if name == "__ZTVN10__cxxabiv120__si_class_type_infoE" {
+                // from libstdcxx
+                mem.write(Ptr::from_bits(ptr_ptr), 0x3800f648);
+                continue;
+            } else if name == "__ZTVN10__cxxabiv117__class_type_infoE" {
+                // from libstdcxx
+                mem.write(Ptr::from_bits(ptr_ptr), 0x3800f61c);
+                continue;
+            } else if name == "___cxa_pure_virtual" {
+                // from libstdcxx
+                mem.write(Ptr::from_bits(ptr_ptr), 0x30073914);
+                continue;
+            } else if matches!(
+                name.as_str(),
+                "___CFConstantStringClassReference" | "__objc_empty_vtable" | "__objc_empty_cache"
+            ) {
                 // See ns_string::register_constant_strings
                 nil
+            } else if name == "__ZTIi" {
+                // from libstdcxx, int type info
+                mem.write(Ptr::from_bits(ptr_ptr), 0x3800f834);
+                continue;
             } else {
                 // TODO: look up symbol, write pointer
                 unhandled_relocations.entry(name).or_default().push(ptr_ptr);

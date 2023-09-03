@@ -8,12 +8,14 @@
 use crate::abi::{DotDotDot, VaList};
 use crate::dyld::{export_c_func, FunctionExports};
 use crate::frameworks::foundation::{ns_string, unichar};
+use crate::libc::stdio::fwrite;
 use crate::mem::{ConstPtr, GuestUSize, Mem, MutPtr};
 use crate::objc::{id, msg};
 use crate::Environment;
 use std::io::Write;
+use super::FILE;
 
-const INTEGER_SPECIFIERS: [u8; 6] = [b'd', b'i', b'o', b'u', b'x', b'X'];
+const INTEGER_SPECIFIERS: [u8; 7] = [b'd', b'i', b'o', b'u', b'f', b'x', b'X'];
 
 /// String formatting implementation for `printf` and `NSLog` function families.
 ///
@@ -43,12 +45,17 @@ pub fn printf_inner<const NS_LOG: bool, F: Fn(&Mem, GuestUSize) -> u8>(
             continue;
         }
 
-        let mut pad_char = if get_format_char(&env.mem, format_char_idx) == b'0' {
+        let flags = get_format_char(&env.mem, format_char_idx);
+        let mut pad_char = if flags == b'0' {
             format_char_idx += 1;
             '0'
+        } else if (b'1'..=b'9').contains(&flags) {
+            format_char_idx += 1;
+            ' '
         } else {
             ' '
         };
+
         let mut has_precision = false;
         if get_format_char(&env.mem, format_char_idx) == b'.' {
             has_precision = true;
@@ -237,6 +244,28 @@ fn printf(env: &mut Environment, format: ConstPtr<u8>, args: DotDotDot) -> i32 {
     res.len().try_into().unwrap()
 }
 
+fn fprintf(
+    env: &mut Environment,
+    file_ptr: MutPtr<FILE>,
+    format: ConstPtr<u8>,
+    args: DotDotDot,
+) -> i32 {
+    log_dbg!(
+        "fprintf({:?} ({:?}), ...)",
+        format,
+        env.mem.cstr_at_utf8(format)
+    );
+
+    let res = printf_inner::<false, _>(env, |mem, idx| mem.read(format + idx), args.start());
+    // TODO: I/O error handling
+    let str = env.mem.alloc_and_write_cstr(res.as_slice());
+    let result = fwrite(env, str.cast().cast_const(), res.len() as u32, 1, file_ptr)
+        .try_into()
+        .unwrap();
+    env.mem.free(str.cast());
+    result
+}
+
 // TODO: more printf variants
 
 fn sscanf(env: &mut Environment, src: ConstPtr<u8>, format: ConstPtr<u8>, args: DotDotDot) -> i32 {
@@ -295,6 +324,7 @@ fn sscanf(env: &mut Environment, src: ConstPtr<u8>, format: ConstPtr<u8>, args: 
 
 pub const FUNCTIONS: FunctionExports = &[
     export_c_func!(sscanf(_, _, _)),
+    export_c_func!(fprintf(_, _, _)),
     export_c_func!(vsnprintf(_, _, _, _)),
     export_c_func!(vsprintf(_, _, _)),
     export_c_func!(sprintf(_, _, _)),

@@ -23,6 +23,7 @@ use std::collections::HashMap;
 pub struct State {
     devices: HashMap<MutPtr<GuestALCdevice>, *mut ALCdevice>,
     contexts: HashMap<MutPtr<GuestALCcontext>, *mut ALCcontext>,
+    current_context: MutPtr<GuestALCcontext>,
 }
 impl State {
     fn get(env: &mut Environment) -> &mut Self {
@@ -176,6 +177,7 @@ fn alcGetProcAddress(
         );
     }
 }
+
 
 // TODO: more functions
 

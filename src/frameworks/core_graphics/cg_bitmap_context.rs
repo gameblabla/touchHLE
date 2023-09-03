@@ -5,7 +5,9 @@
  */
 //! `CGBitmapContext.h`
 
-use super::cg_color_space::{kCGColorSpaceGenericRGB, CGColorSpaceHostObject, CGColorSpaceRef};
+use super::cg_color_space::{
+    kCGColorSpaceGenericGray, kCGColorSpaceGenericRGB, CGColorSpaceHostObject, CGColorSpaceRef,
+};
 use super::cg_context::{CGContextHostObject, CGContextRef, CGContextSubclass};
 use super::cg_image::{
     self, kCGBitmapAlphaInfoMask, kCGBitmapByteOrderMask, kCGImageAlphaFirst, kCGImageAlphaLast,
@@ -45,10 +47,12 @@ pub fn CGBitmapContextCreate(
     assert!(bits_per_component == 8); // TODO: support other bit depths
 
     let color_space = env.objc.borrow::<CGColorSpaceHostObject>(color_space).name;
-    // TODO: support other color spaces
-    assert!(color_space == kCGColorSpaceGenericRGB);
 
-    let component_count = components_for_rgb(bitmap_info).unwrap();
+    let component_count = match color_space {
+        kCGColorSpaceGenericRGB => components_for_rgb(bitmap_info).unwrap(),
+        kCGColorSpaceGenericGray => components_for_gray(bitmap_info).unwrap(),
+        _ => unimplemented!("support other color spaces"),
+    };
 
     let (data, data_is_owned, bytes_per_row) = if data.is_null() {
         let bytes_per_row = if bytes_per_row == 0 {
@@ -72,12 +76,13 @@ pub fn CGBitmapContextCreate(
             height,
             bits_per_component,
             bytes_per_row,
-            color_space: kCGColorSpaceGenericRGB,
+            color_space,
             alpha_info: bitmap_info & kCGBitmapAlphaInfoMask,
         }),
         // TODO: is this the correct default?
         rgb_fill_color: (0.0, 0.0, 0.0, 0.0),
         translation: (0.0, 0.0),
+        scale: (1.0, 1.0),
     };
     let isa = env
         .objc
@@ -127,6 +132,29 @@ fn components_for_rgb(bitmap_info: CGBitmapInfo) -> Result<GuestUSize, ()> {
     }
 }
 
+fn components_for_gray(bitmap_info: CGBitmapInfo) -> Result<GuestUSize, ()> {
+    let byte_order = bitmap_info & kCGBitmapByteOrderMask;
+    if byte_order != kCGImageByteOrderDefault && byte_order != kCGImageByteOrder32Big {
+        return Err(()); // TODO: handle other byte orders
+    }
+
+    let alpha_info = bitmap_info & kCGBitmapAlphaInfoMask;
+    if (alpha_info | byte_order) != bitmap_info {
+        return Err(()); // TODO: handle other cases (float)
+    }
+    match alpha_info & kCGBitmapAlphaInfoMask {
+        kCGImageAlphaNone => Ok(1), // gray
+        kCGImageAlphaPremultipliedLast
+        | kCGImageAlphaPremultipliedFirst
+        | kCGImageAlphaLast
+        | kCGImageAlphaFirst
+        | kCGImageAlphaNoneSkipLast
+        | kCGImageAlphaNoneSkipFirst => Ok(2), // gray + alpha
+        kCGImageAlphaOnly => Ok(1), // A
+        _ => Err(()),               // unknown values
+    }
+}
+
 fn bytes_per_pixel(data: &CGBitmapContextData) -> GuestUSize {
     let &CGBitmapContextData {
         bits_per_component,
@@ -135,8 +163,11 @@ fn bytes_per_pixel(data: &CGBitmapContextData) -> GuestUSize {
         ..
     } = data;
     assert!(bits_per_component == 8);
-    assert!(color_space == kCGColorSpaceGenericRGB);
-    components_for_rgb(alpha_info).unwrap()
+    match color_space {
+        kCGColorSpaceGenericRGB => components_for_rgb(alpha_info).unwrap(),
+        kCGColorSpaceGenericGray => components_for_gray(alpha_info).unwrap(),
+        _ => unimplemented!("support other color spaces"),
+    }
 }
 
 fn get_pixels<'a>(data: &CGBitmapContextData, mem: &'a mut Mem) -> &'a mut [u8] {
@@ -176,51 +207,52 @@ fn blend_premultiplied(bg: (f32, f32, f32, f32), fg: (f32, f32, f32, f32)) -> (f
     )
 }
 
+/// per component offsets (r, g, b, a)
+fn pixel_offsets(data: &CGBitmapContextData) -> (usize, usize, usize, Option<usize>) {
+    match data.color_space {
+        kCGColorSpaceGenericRGB => {
+            match data.alpha_info {
+                kCGImageAlphaNone => (0, 1, 2, None),
+                kCGImageAlphaPremultipliedLast | kCGImageAlphaLast => (0, 1, 2, Some(3)),
+                kCGImageAlphaPremultipliedFirst | kCGImageAlphaFirst => (1, 2, 3, Some(0)),
+                kCGImageAlphaNoneSkipLast => (0, 1, 2, None),
+                kCGImageAlphaNoneSkipFirst => (1, 2, 3, None),
+                kCGImageAlphaOnly => (0, 0, 0, Some(0)),
+                _ => unreachable!(), // checked by bytes_per_pixel
+            }
+        }
+        kCGColorSpaceGenericGray => {
+            match data.alpha_info {
+                kCGImageAlphaNone => (0, 0, 0, None),
+                kCGImageAlphaPremultipliedLast | kCGImageAlphaLast => (0, 0, 0, Some(1)),
+                kCGImageAlphaPremultipliedFirst | kCGImageAlphaFirst => (1, 1, 1, Some(0)),
+                kCGImageAlphaNoneSkipLast => (0, 0, 0, None),
+                kCGImageAlphaNoneSkipFirst => (1, 1, 1, None),
+                kCGImageAlphaOnly => (0, 0, 0, Some(0)),
+                _ => unreachable!(), // checked by bytes_per_pixel
+            }
+        }
+        _ => unimplemented!(),
+    }
+}
+
 /// Get gamma-decoded RGBA value.
 fn get_pixel(
     data: &CGBitmapContextData,
     pixels: &mut [u8],
     first_component_idx: usize,
 ) -> (f32, f32, f32, f32) {
-    let pixel = match data.alpha_info {
-        kCGImageAlphaNone => (
-            pixels[first_component_idx] as f32 / 255.0,
-            pixels[first_component_idx + 1] as f32 / 255.0,
-            pixels[first_component_idx + 2] as f32 / 255.0,
-            1.0,
-        ),
-        kCGImageAlphaPremultipliedLast | kCGImageAlphaLast => (
-            pixels[first_component_idx] as f32 / 255.0,
-            pixels[first_component_idx + 1] as f32 / 255.0,
-            pixels[first_component_idx + 2] as f32 / 255.0,
-            pixels[first_component_idx + 3] as f32 / 255.0,
-        ),
-        kCGImageAlphaPremultipliedFirst | kCGImageAlphaFirst => (
-            pixels[first_component_idx + 1] as f32 / 255.0,
-            pixels[first_component_idx + 2] as f32 / 255.0,
-            pixels[first_component_idx + 3] as f32 / 255.0,
-            pixels[first_component_idx] as f32 / 255.0,
-        ),
-        kCGImageAlphaNoneSkipLast => (
-            pixels[first_component_idx] as f32 / 255.0,
-            pixels[first_component_idx + 1] as f32 / 255.0,
-            pixels[first_component_idx + 2] as f32 / 255.0,
-            1.0,
-        ),
-        kCGImageAlphaNoneSkipFirst => (
-            pixels[first_component_idx + 1] as f32 / 255.0,
-            pixels[first_component_idx + 2] as f32 / 255.0,
-            pixels[first_component_idx + 3] as f32 / 255.0,
-            1.0,
-        ),
-        kCGImageAlphaOnly => (
-            pixels[first_component_idx] as f32 / 255.0,
-            pixels[first_component_idx] as f32 / 255.0,
-            pixels[first_component_idx] as f32 / 255.0,
-            pixels[first_component_idx] as f32 / 255.0,
-        ),
-        _ => unreachable!(), // checked by bytes_per_pixel
-    };
+    let pixel_offset = pixel_offsets(data);
+    let pixel = (
+        pixels[first_component_idx + pixel_offset.0] as f32 / 255.0,
+        pixels[first_component_idx + pixel_offset.1] as f32 / 255.0,
+        pixels[first_component_idx + pixel_offset.2] as f32 / 255.0,
+        if let Some(alpha_offest) = pixel_offset.3 {
+            pixels[first_component_idx + alpha_offest] as f32 / 255.0
+        } else {
+            1.0
+        },
+    );
 
     (
         gamma_decode(pixel.0),
@@ -272,40 +304,19 @@ fn put_pixel(
 
     // Alpha is always linear.
     let (r, g, b) = (gamma_encode(r), gamma_encode(g), gamma_encode(b));
+    let pixel_offset = pixel_offsets(data);
     match data.alpha_info {
-        kCGImageAlphaNone => {
-            pixels[first_component_idx] = (r * 255.0) as u8;
-            pixels[first_component_idx + 1] = (g * 255.0) as u8;
-            pixels[first_component_idx + 2] = (b * 255.0) as u8;
-        }
-        kCGImageAlphaPremultipliedLast | kCGImageAlphaLast => {
-            pixels[first_component_idx] = (r * 255.0) as u8;
-            pixels[first_component_idx + 1] = (g * 255.0) as u8;
-            pixels[first_component_idx + 2] = (b * 255.0) as u8;
-            pixels[first_component_idx + 3] = (a * 255.0) as u8;
-        }
-        kCGImageAlphaPremultipliedFirst | kCGImageAlphaFirst => {
-            pixels[first_component_idx] = (a * 255.0) as u8;
-            pixels[first_component_idx + 1] = (r * 255.0) as u8;
-            pixels[first_component_idx + 2] = (g * 255.0) as u8;
-            pixels[first_component_idx + 3] = (b * 255.0) as u8;
-        }
-        kCGImageAlphaNoneSkipLast => {
-            pixels[first_component_idx] = (r * 255.0) as u8;
-            pixels[first_component_idx + 1] = (g * 255.0) as u8;
-            pixels[first_component_idx + 2] = (b * 255.0) as u8;
-            // alpha component skipped
-        }
-        kCGImageAlphaNoneSkipFirst => {
-            // alpha component skipped
-            pixels[first_component_idx + 1] = (r * 255.0) as u8;
-            pixels[first_component_idx + 2] = (g * 255.0) as u8;
-            pixels[first_component_idx + 3] = (b * 255.0) as u8;
-        }
         kCGImageAlphaOnly => {
             pixels[first_component_idx] = (a * 255.0) as u8;
         }
-        _ => unreachable!(), // checked by bytes_per_pixel
+        _ => {
+            pixels[first_component_idx + pixel_offset.0] = (r * 255.0) as u8;
+            pixels[first_component_idx + pixel_offset.1] = (g * 255.0) as u8;
+            pixels[first_component_idx + pixel_offset.2] = (b * 255.0) as u8;
+            if let Some(alpha_offset) = pixel_offset.3 {
+                pixels[first_component_idx + alpha_offset] = (a * 255.0) as u8;
+            }
+        }
     }
 }
 
@@ -315,6 +326,7 @@ pub struct CGBitmapContextDrawer<'a> {
     bitmap_info: CGBitmapContextData,
     rgb_fill_color: (CGFloat, CGFloat, CGFloat, CGFloat),
     translation: (CGFloat, CGFloat),
+    scale: (CGFloat, CGFloat),
     pixels: &'a mut [u8],
 }
 impl CGBitmapContextDrawer<'_> {
@@ -327,6 +339,7 @@ impl CGBitmapContextDrawer<'_> {
             subclass: CGContextSubclass::CGBitmapContext(bitmap_info),
             rgb_fill_color,
             translation,
+            scale,
         } = objc.borrow(context);
 
         let pixels = get_pixels(&bitmap_info, mem);
@@ -335,6 +348,7 @@ impl CGBitmapContextDrawer<'_> {
             bitmap_info,
             rgb_fill_color,
             translation,
+            scale,
             pixels,
         }
     }
@@ -347,6 +361,9 @@ impl CGBitmapContextDrawer<'_> {
     }
     pub fn translation(&self) -> (CGFloat, CGFloat) {
         self.translation
+    }
+    pub fn scale(&self) -> (CGFloat, CGFloat) {
+        self.scale
     }
     /// Get the current fill color. The returned color is linear RGB, not sRGB.
     /// It has premultiplied alpha if the context does.

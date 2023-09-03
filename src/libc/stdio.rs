@@ -5,13 +5,14 @@
  */
 //! `stdio.h`
 
-use super::posix_io::{self, off_t, O_APPEND, O_CREAT, O_RDONLY, O_RDWR, O_TRUNC, O_WRONLY};
+use super::posix_io::{self, O_APPEND, O_CREAT, O_RDONLY, O_RDWR, O_TRUNC, O_WRONLY, STDERR_FILENO, STDOUT_FILENO};
 use crate::dyld::{export_c_func, FunctionExports};
 use crate::fs::GuestPath;
 use crate::libc::string::strlen;
 use crate::mem::{ConstPtr, ConstVoidPtr, GuestUSize, MutPtr, MutVoidPtr, Ptr, SafeRead};
 use crate::Environment;
 use std::io::Write;
+use crate::libc::posix_io::off_t;
 
 // Standard C functions
 
@@ -108,14 +109,34 @@ fn fwrite(
 ) -> GuestUSize {
     let FILE { fd } = env.mem.read(file_ptr);
 
-    // The comment about the item_size/n_items split in fread() applies here too
     let total_size = item_size.checked_mul(n_items).unwrap();
-    match posix_io::write(env, fd, buffer, total_size) {
-        // TODO: ferror() support.
-        -1 => 0,
-        bytes_written => {
-            let bytes_written: GuestUSize = bytes_written.try_into().unwrap();
-            bytes_written / item_size
+
+    // TODO: Refactor, use traits instead of this hack
+    match fd {
+        STDOUT_FILENO => {
+            let buffer_slice = env.mem.bytes_at(buffer.cast(), total_size);
+            match std::io::stdout().write(buffer_slice) {
+                Ok(bytes_written) => (bytes_written / (item_size as usize)) as GuestUSize,
+                Err(_err) => 0,
+            }
+        }
+        STDERR_FILENO => {
+            let buffer_slice = env.mem.bytes_at(buffer.cast(), total_size);
+            match std::io::stderr().write(buffer_slice) {
+                Ok(bytes_written) => (bytes_written / (item_size as usize)) as GuestUSize,
+                Err(_err) => 0,
+            }
+        }
+        _ => {
+            // The comment about the item_size/n_items split in fread() applies here too
+            match posix_io::write(env, fd, buffer, total_size) {
+                // TODO: ferror() support.
+                -1 => 0,
+                bytes_written => {
+                    let bytes_written: GuestUSize = bytes_written.try_into().unwrap();
+                    bytes_written / item_size
+                }
+            }
         }
     }
 }
@@ -196,18 +217,24 @@ fn putchar(_env: &mut Environment, c: u8) -> i32 {
 }
 
 fn remove(env: &mut Environment, path: ConstPtr<u8>) -> i32 {
-    match env
-        .fs
-        .remove(GuestPath::new(&env.mem.cstr_at_utf8(path).unwrap()))
-    {
-        Ok(()) => {
-            log_dbg!("remove({:?}) => 0", path);
-            0
-        }
-        Err(_) => {
-            // TODO: set errno
-            log!("Warning: remove({:?}) failed, returning -1", path);
-            -1
+    if Ptr::is_null(path) {
+        // TODO: set errno
+        log!("remove({:?}) => -1, attempted to remove null", path);
+        -1
+    } else {
+        match env
+            .fs
+            .remove(GuestPath::new(&env.mem.cstr_at_utf8(path).unwrap()))
+        {
+            Ok(()) => {
+                log_dbg!("remove({:?}) => 0", path);
+                0
+            }
+            Err(_) => {
+                // TODO: set errno
+                log!("Warning: remove({:?}) failed, returning -1", path);
+                -1
+            }
         }
     }
 }

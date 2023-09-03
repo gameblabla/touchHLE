@@ -163,6 +163,13 @@ pub fn size_with_font(
     text: &str,
     constrained: Option<(CGSize, UILineBreakMode)>,
 ) -> CGSize {
+    if text == " " {
+        // ' ' will return 0 size, which is wrong
+        // thus, we choose another similar char to calculate the size
+        // (choice of '-' is made a bit arbitrary, just to look good on the screen)
+        return size_with_font(env, font, "-", constrained);
+    }
+
     let host_object = env.objc.borrow::<UIFontHostObject>(font);
 
     let font = get_font(
@@ -255,19 +262,23 @@ pub fn draw_in_rect(
     };
 
     let translation = drawer.translation();
+    let scale = drawer.scale();
+    assert_eq!(scale.0, 1.0);
+    let scale_y = scale.1 as i32;
+    assert_eq!(scale_y.abs(), 1);
     font.draw(
         host_object.size,
         text,
         (
             translation.0 + rect.origin.x + origin_x_offset,
-            translation.1 + rect.origin.y,
+            scale.1 * (translation.1 + rect.origin.y),
         ),
         Some((rect.size.width, convert_line_break_mode(line_break_mode))),
         alignment,
         |(x, y), coverage| {
             let (r, g, b, a) = fill_color;
             let (r, g, b, a) = (r * coverage, g * coverage, b * coverage, a * coverage);
-            drawer.put_pixel((x, y), (r, g, b, a), /* blend: */ true);
+            drawer.put_pixel((x, scale_y * y), (r, g, b, a), /* blend: */ true);
         },
     );
 
