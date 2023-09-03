@@ -363,6 +363,11 @@ pub const CLASSES: ClassExports = objc_classes! {
     // default implementation does nothing
 }
 
+
+- (id)setAnimationsEnabled:(bool)v {
+	this
+}
+
 // CALayerDelegate implementation
 - (())drawLayer:(id)layer // CALayer*
       inContext:(CGContextRef)context {
