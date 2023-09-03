@@ -125,7 +125,9 @@ fn strncmp(env: &mut Environment, a: ConstPtr<u8>, b: ConstPtr<u8>, n: GuestUSiz
 }
 
 fn strcasecmp(env: &mut Environment, a: ConstPtr<u8>, b: ConstPtr<u8>) -> i32 {
-	strcasecmp(env, a, b)
+	//strcasecmp(env, a, b)
+	// GenericChar::<u8>::strcasecmp(env, a, b)
+	0
 }
 
 

@@ -23,6 +23,12 @@ fn CFBundleGetMainBundle(env: &mut Environment) -> CFBundleRef {
     msg_class![env; NSBundle mainBundle]
 }
 
+fn CFBundleCopyBundleURL(env: &mut Environment, bundle: CFBundleRef) -> CFURLRef {
+	// TODO
+    let url: CFURLRef = msg![env; bundle resourceURL];
+    msg![env; url copy]
+}
+
 fn CFBundleCopyResourcesDirectoryURL(env: &mut Environment, bundle: CFBundleRef) -> CFURLRef {
     let url: CFURLRef = msg![env; bundle resourceURL];
     msg![env; url copy]
@@ -85,6 +91,7 @@ fn CFBundleCopyPreferredLocalizationsFromArray(
 
 pub const FUNCTIONS: FunctionExports = &[
     export_c_func!(CFBundleGetMainBundle()),
+    export_c_func!(CFBundleCopyBundleURL(_)),
     export_c_func!(CFBundleCopyResourcesDirectoryURL(_)),
     export_c_func!(CFBundleCopyResourceURL(_, _, _, _)),
     export_c_func!(CFBundleCopyBundleLocalizations(_)),

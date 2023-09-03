@@ -19,6 +19,14 @@ use crate::Environment;
 
 pub type CFURLRef = super::CFTypeRef;
 
+pub fn CFURLCopyFileSystemPath(
+    env: &mut Environment,
+    url: CFURLRef,
+    pathStyle: MutPtr<u8>,
+) -> bool {
+    true
+}
+
 pub fn CFURLGetFileSystemRepresentation(
     env: &mut Environment,
     url: CFURLRef,
@@ -61,6 +69,7 @@ pub fn CFURLCreateFromFileSystemRepresentation(
 }
 
 pub const FUNCTIONS: FunctionExports = &[
+    export_c_func!(CFURLCopyFileSystemPath(_, _)),
     export_c_func!(CFURLGetFileSystemRepresentation(_, _, _, _)),
     export_c_func!(CFURLCreateFromFileSystemRepresentation(_, _, _, _)),
 ];

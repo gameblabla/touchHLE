@@ -149,6 +149,12 @@ pub const CLASSES: ClassExports = objc_classes! {
 	true
 }
 
+- (bool)changeCurrentDirectoryPath:(id)path // NSString*
+{ 
+	true
+}
+
+
 - (id)enumeratorAtPath:(id)path { // NSString*
     let path = ns_string::to_rust_string(env, path); // TODO: avoid copy
     let Ok(paths) = env.fs.enumerate_recursive(GuestPath::new(&path)) else {

@@ -223,6 +223,11 @@ pub const CLASSES: ClassExports = objc_classes! {
 	this
 }
 
+- (id)length {
+	this
+}
+
+
 // TODO: enumeration, more init methods, etc
 
 - (NSUInteger)count {
