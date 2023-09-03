@@ -225,6 +225,20 @@ fn glLightf(env: &mut Environment, light: GLenum, pname: GLenum, param: GLfloat)
         gles.Lightf(light, pname, param)
     })
 }
+
+fn glLightModelfv(env: &mut Environment, light: GLenum, pname: GLenum, param: GLfixed) {
+    /*with_ctx_and_mem(env, |gles, _mem| unsafe {
+        gles.glLightModelfv(light, pname, param)
+    })*/
+}
+
+fn glPointSize(env: &mut Environment, size: GLfloat) {
+}
+
+fn glLineWidth(env: &mut Environment, width: GLfloat) {
+}
+
+
 fn glLightx(env: &mut Environment, light: GLenum, pname: GLenum, param: GLfixed) {
     with_ctx_and_mem(env, |gles, _mem| unsafe {
         gles.Lightx(light, pname, param)
@@ -965,6 +979,10 @@ pub const FUNCTIONS: FunctionExports = &[
     export_c_func!(glFogfv(_, _)),
     export_c_func!(glFogxv(_, _)),
     export_c_func!(glLightf(_, _, _)),
+    export_c_func!(glLightModelfv(_, _, _)),
+	export_c_func!(glPointSize(_)),
+	export_c_func!(glLineWidth(_)),
+	
     export_c_func!(glLightx(_, _, _)),
     export_c_func!(glLightfv(_, _, _)),
     export_c_func!(glLightxv(_, _, _)),
